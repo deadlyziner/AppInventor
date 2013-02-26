@@ -49,11 +49,13 @@ public class DesignToolbar extends Toolbar {
   private static final String WIDGET_NAME_ADDFORM = "AddForm";
   private static final String WIDGET_NAME_REMOVEFORM = "RemoveForm";
   private static final String WIDGET_NAME_BUILD = "Build";
+  private static final String WIDGET_NAME_SOURCE = "Source";
   private static final String WIDGET_NAME_BARCODE = "Barcode";
   private static final String WIDGET_NAME_DOWNLOAD = "Download";
   private static final String WIDGET_NAME_DOWNLOAD_TO_PHONE = "DownloadToPhone";
   private static final String WIDGET_NAME_OPEN_BLOCKS_EDITOR = "OpenBlocksEditor";
   private static final String WIDGET_NAME_DOWNLOAD_JAVA_SOURCES = "DownloadJavaSources";
+  private static final String WIDGET_NAME_DOWNLOAD_SOURCE = "DownloadEclipse";
 
   private boolean codeblocksButtonCancel = false;
 
@@ -82,9 +84,16 @@ public class DesignToolbar extends Toolbar {
       addButton(new ToolbarItem(WIDGET_NAME_REMOVEFORM, MESSAGES.removeFormButton(),
           new RemoveFormAction()));
     }
-
-    addButton(new ToolbarItem(WIDGET_NAME_DOWNLOAD_JAVA_SOURCES,
-            MESSAGES.downloadJavaFiles(), new DownloadJavaFilesAction()), true);
+    
+    List<ToolbarItem> sourceItems = Lists.newArrayList();
+    
+    sourceItems.add(new ToolbarItem(WIDGET_NAME_DOWNLOAD_JAVA_SOURCES,
+            MESSAGES.downloadJavaFiles(), new DownloadJavaFilesAction()));
+    sourceItems.add(new ToolbarItem(WIDGET_NAME_DOWNLOAD_SOURCE,
+            MESSAGES.downloadAsEclipseProject(), new DownloadAsEclipseProject()));
+            
+    addDropDownButton(WIDGET_NAME_SOURCE, MESSAGES.sourceButton(), sourceItems, true);
+            
     addButton(new ToolbarItem(WIDGET_NAME_OPEN_BLOCKS_EDITOR,
         MESSAGES.openBlocksEditorButton(), new OpenBlocksEditorAction()), true);
 
@@ -203,6 +212,21 @@ public class DesignToolbar extends Toolbar {
 	        }
 	      }
 	}   
+	
+	private static class DownloadAsEclipseProject implements Command {
+	      @Override
+	      public void execute() {
+	        ProjectRootNode projectRootNode = Ode.getInstance().getCurrentYoungAndroidProjectRootNode();
+	        if (projectRootNode != null) {
+	          String target = YoungAndroidProjectNode.YOUNG_ANDROID_TARGET_ANDROID;
+	          ChainableCommand cmd = new BuildEclipseProjectCommand(target,
+	        	  new ShowProgressBarForEclipseCommand(target,
+	        		  new WaitForEclipseProjectBuildResultCommand(target, 
+	        			  new DownloadAsEclipseProjectCommand(target)),"DownloadEclipseProjectAction"));
+	          cmd.startExecuteChain(Tracking.PROJECT_ACTION_DOWNLOAD_AS_ECLIPSE_PROJECT_YA, projectRootNode);
+	        }
+	      }
+	}
 
     private class DownloadAction implements Command {
       @Override

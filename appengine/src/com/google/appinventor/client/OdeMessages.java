@@ -83,7 +83,7 @@ public interface OdeMessages extends Messages {
   @Description("Confirmation query for removing a screen")
   String reallyDeleteForm(String formName);
 
-  @DefaultMessage("Download Java Files test")
+  @DefaultMessage("Download Java Files")
   @Description("Label of the button for opening the blocks editor")
   String downloadJavaFiles();
  
@@ -106,6 +106,10 @@ public interface OdeMessages extends Messages {
   @DefaultMessage("Package for Phone")
   @Description("Label of the button leading to build related cascade items")
   String buildButton();
+
+  @DefaultMessage("Download Source")
+  @Description("Label of the button leading to java source download")
+  String sourceButton();
 
   @DefaultMessage("Packaging...")
   @Description("Label of the button leading to build related cascade items, when building")

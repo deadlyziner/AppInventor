@@ -234,7 +234,8 @@ public File getOutputApk() {
 				File tmpProjectOutputDir2 = null;
 				ArrayList<File> yailFiles = null;
 				
-				if(buildOption == 2) {
+				if(buildOption == 1) {
+				    LOG.info("******* entering build for project!! *******");
 			        List<String> sourceFiles;
 			        
 			        setEclipseBuildStatus(20);
@@ -253,7 +254,6 @@ public File getOutputApk() {
   		        	tmpProjectOutputDir = new File(projectRoot + File.separator + "output");
   		        	ZipOutputStream zipOS = new ZipOutputStream(new FileOutputStream(outputEclipseZip));
   		        	ZipUtil.recursiveZip(tmpProjectOutputDir,tmpProjectOutputDir.toURI(),zipOS);
-  		        	LOG.info("******* zip1done *******");
   		        	zipOS.flush();
 			        
 			        setEclipseBuildStatus(30);
@@ -270,7 +270,7 @@ public File getOutputApk() {
 			        
 			        setEclipseBuildStatus(60);
 					try {
-						tmpProjectOutputDir2 = genJavaSources(yailFiles, projectRoot, outputStringBuffer, errorStringBuffer);
+						tmpProjectOutputDir2 = genJavaSources(yailFiles, projectRoot, outputStringBuffer, errorStringBuffer, "eclipse");
 					} catch (IOException e) {
 						return new Result(Result.YAIL_TO_JAVA_GENERATION_ERROR, "",
 								e.getMessage(), "- Not Applicable -");
@@ -285,6 +285,7 @@ public File getOutputApk() {
 					tmpProjectOutputDir = new File(projectRoot + File.separator + "java");
 					//tmpProjectOutputDir2 = new File(projectRoot + File.separator + "src2" );
 					LOG.info("*******" + tmpProjectOutputDir2 + "*******");
+					LOG.info("*******" + tmpProjectOutputDir + "*******");
 			        setEclipseBuildStatus(100);
 			        //ZipOutputStream zipOS = new ZipOutputStream(new FileOutputStream(outputEclipseZip));
   		        	ZipUtil.recursiveZipInDir(tmpProjectOutputDir, projectRoot.toURI(), tmpProjectOutputDir2.toURI(), zipOS);
@@ -292,23 +293,51 @@ public File getOutputApk() {
   		        	zipOS.flush();
   		        	zipOS.close();
 				} else {
-			        
+			        List<String> sourceFiles;
+
+			        setEclipseBuildStatus(20);
+			        try {
+			          sourceFiles = extractProjectFiles(new ZipFile(inputZipFile), projectRoot);
+			        } catch (IOException e) {
+			          LOG.severe("unexpected problem extracting project file from zip");
+			          return Result.createFailingResult("", "Problems processing zip file.");
+			        }
+
+			        setEclipseBuildStatus(30);
+			        try {
+			        	yailFiles = genYailFilesIfNecessary(sourceFiles);
+			          } catch (YailGenerationException e) {
+			            // Note that we're using a special result code here for the case of a Yail gen error.
+			            return new Result(Result.YAIL_GENERATION_ERROR, "", e.getMessage(), e.getFormName());
+			          } catch (Exception e) {
+			            LOG.severe("Unknown exception signalled by genYailFilesIf Necessary");
+			            e.printStackTrace();
+			            return Result.createFailingResult("", "Unexpected problems generating YAIL.");
+			          }	
+
+			        setEclipseBuildStatus(60);
 					try {
-						setEclipseBuildStatus(50);
-						genEclipseProject(inputZipFile,projectRoot, outputStringBuffer, errorStringBuffer);
+						genJavaSources(yailFiles, projectRoot, outputStringBuffer, errorStringBuffer, "source");
 					} catch (IOException e) {
-						return new Result(Result.ECLIPSE_PROJECT_GENERATION_ERROR, "",
+						return new Result(Result.YAIL_TO_JAVA_GENERATION_ERROR, "",
 								e.getMessage(), "- Not Applicable -");
 					} catch (Exception e) {
-						LOG.severe("Unknown exception signalled by buildEclipseProject");
+						LOG.severe("Unknown exception signalled by buildEclipseProject with 'build Java sources only' option");
 						e.printStackTrace();
 						return Result.createFailingResult("",
-								"Unexpected problems generating Eclipse project out of AppInvertor source");
+								"Unexpected problems generating Java sources out of AppInvertor source");
 					}
 					setEclipseBuildStatus(80);
-					outputEclipseZip = new File(outputDir,"EclipseProject.zip");
-					tmpProjectOutputDir = new File(projectRoot + File.separator + "output");
-					setEclipseBuildStatus(100);
+					outputEclipseZip = new File(outputDir, "JavaFiles.zip");
+					tmpProjectOutputDir = new File(projectRoot + File.separator + "java");
+			        setEclipseBuildStatus(100);
+			        
+                    if(tmpProjectOutputDir.isDirectory() && tmpProjectOutputDir.exists()) {
+                                     ZipOutputStream zipOS = new ZipOutputStream(new FileOutputStream(outputEclipseZip));
+                                     ZipUtil.recursiveZip(tmpProjectOutputDir,tmpProjectOutputDir.toURI(),zipOS);
+                                     zipOS.flush();
+                                     zipOS.close();
+                                 }
 				}
 
                 // if(tmpProjectOutputDir.isDirectory() && tmpProjectOutputDir.exists()) {
@@ -322,7 +351,7 @@ public File getOutputApk() {
 			} finally {
 				// ********** make sure to uncomment later!!! 
 				
-				FileUtils.deleteDirectory(new File(projectRoot.getCanonicalPath()));
+				//FileUtils.deleteDirectory(new File(projectRoot.getCanonicalPath()));
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -331,7 +360,7 @@ public File getOutputApk() {
 	}
 
 	private File genJavaSources(ArrayList<File> yailFiles, File projectRoot,
-			StringBuffer outputStringBuffer, StringBuffer errorStringBuffer) throws IOException,
+			StringBuffer outputStringBuffer, StringBuffer errorStringBuffer, String mode) throws IOException,
 			YailToJavaGenerationException {
 		
 		File tmpJavaFolder = new File(projectRoot + File.separator +"java");
@@ -353,7 +382,8 @@ public File getOutputApk() {
 					"-jar",
 					Compiler.getResource(Compiler.RUNTIME_FILES_DIR
 							+ "yail-to-java.jar"),
-					yailFile.getAbsolutePath() 
+					yailFile.getAbsolutePath() ,
+					mode
 			};
 			
 			int exitValue = Execution.execute(null, commandLine, innerOut, innerErr);
@@ -366,6 +396,14 @@ public File getOutputApk() {
 			String javaSource = innerOut.toString();
 			File javaSourceFile = new File(tmpJavaFolder, yailFile.getName().replace(".yail", ".java"));
 			Files.write(javaSource, javaSourceFile, Charsets.UTF_8);
+			if (mode.compareTo("eclipse") == 0) {
+			    try {
+			        File xml = new File(yailFile.getParent()+"/AndriodManifest.xml");
+			        xml.renameTo(new File(tmpJavaFolder+ "/" + xml.getName()));
+		        } catch(Exception e){
+                	e.printStackTrace();
+                }
+            }
 			out = out.append(innerOut);
 			err = err.append(innerErr);
 		}
